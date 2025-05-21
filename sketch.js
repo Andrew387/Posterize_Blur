@@ -4,7 +4,7 @@ let glowBuffer;
 let grainBuffer;
 // glow settings
 const defaultGlowWeight = 26;
-const defaultBlurLevel = 82;
+const defaultBlurLevel = 122;
 // grain overlay settings
 
 function preload() {
@@ -16,7 +16,6 @@ function preload() {
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
-  noCursor();
 
   // hide the default video element
   video.hide();
@@ -57,31 +56,40 @@ function draw() {
 }
 
 // helper to perform a vertical-only blur by compositing multiple passes
-function verticalBlur(src, dest, blurY = 202, steps = 1004) {
+function verticalBlur(src, dest, blurY = 400, steps = 200, sigma = 0.9) {
   dest.clear();
-  // copy the original glow into a temp buffer
   let temp = createGraphics(src.width, src.height);
   temp.pixelDensity(1);
   temp.image(src, 0, 0);
-  
-  // how much alpha each pass contributes
-  let α = 1 / steps;
-  
-  // draw the temp at offsets from -blurY/2 to +blurY/2
+
+  // build & normalize Gaussian kernel
+  let kernel = [];
+  let sum = 0;
   for (let i = 0; i < steps; i++) {
-    let t = i / (steps - 1);
-    let offY = lerp(-blurY / 0.6, blurY / 0.6, t);
-    
+    let x = map(i, 0, steps-1, -1, 1);
+    let w = Math.exp(-0.5 * (x*x)/(sigma*sigma));
+    kernel[i] = w;
+    sum += w;
+  }
+  for (let i = 0; i < steps; i++) {
+    kernel[i] /= sum;
+  }
+
+  // composite
+  for (let i = 0; i < steps; i++) {
+    let t    = i/(steps-1);
+    let offY = lerp(-blurY, blurY, t);
+    let α    = kernel[i];
+
     dest.push();
-      dest.tint(200, α * 255);
+      dest.tint(255, α * 255);
       dest.translate(0, offY);
       dest.image(temp, 0, 0);
     dest.pop();
   }
-
-  // reset tint for future draws
   dest.tint(255);
 }
+
 
 function glow(drawFn, {
   color,
@@ -100,7 +108,7 @@ function glow(drawFn, {
   // now apply vertical-only blur into a second buffer
   let blurred = createGraphics(width, height);
   blurred.pixelDensity(1);
-  verticalBlur(glowBuffer, blurred, blurLevel, 44);
+  verticalBlur(glowBuffer, blurred, blurLevel, 64);
 
   // composite additively
   push();
@@ -118,7 +126,7 @@ function regenerateGrain() {
     grainBuffer.pixels[i] = v;
     grainBuffer.pixels[i + 1] = v;
     grainBuffer.pixels[i + 2] = v;
-    grainBuffer.pixels[i + 3] = random(30, 60);
+    grainBuffer.pixels[i + 3] = random(10, 100);
   }
   grainBuffer.updatePixels();
 }
